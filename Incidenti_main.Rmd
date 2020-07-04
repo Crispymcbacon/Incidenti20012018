@@ -1,0 +1,421 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r, cache:TRUE}
+#base
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+#grafici
+library(hrbrthemes)
+library(treemap)
+library(scales)
+
+#mappa
+library(devtools)
+install_github("quantide/mapIT")
+library(mapIT)
+options(scipen=999)
+
+#testo
+hrbrthemes::import_roboto_condensed()
+```
+
+```{r}
+i1_incidenti = read.csv("1-incidenti-morti-feriti-ed-indicatori-01-18.csv")
+i1_incidenti
+
+e1_traffico = read.csv("Traffico_2018.csv")
+e1_traffico
+
+i1_inc_tipo_veicoli = read.csv("incidenti-per-tipo-di-veicoli-coinvolti-e-regione---anni-2001-2018.csv")
+i1_inc_tipo_veicoli
+
+e1_popolazione_2018 = read.csv("regioni_2018_istat.csv")
+e1_popolazione_2018
+
+p1_lesioni_2018 = read.csv("incidenti-stradali-con-lesioni-a-persone.csv")
+p1_lesioni_2018 
+
+```
+
+```{r}
+j1_incidenti_mesi <-
+  i1_incidenti %>%
+  select(Anno, Mese, Incidenti) %>%
+  filter(!grepl('Trimestre', Mese))
+
+old <- c("Gennaio","Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre")
+new <- c(01,02,03,04,05,06,07,08,09,10,11,12)
+
+j1_incidenti_mesi$Mese <- Reduce(function(x,i) gsub(old[i],new[i],x),seq_along(old),j1_incidenti_mesi$Mese) #converto nome mese in numero
+
+j1_incidenti_mesi <- unite(j1_incidenti_mesi, Data, c(Anno, Mese), remove=TRUE, sep="-") #unisco le due colonne
+
+j1_incidenti_mesi$Data <- as.Date(paste(j1_incidenti_mesi$Data,"-01",sep="")) #converto in Data
+
+j1_incidenti_mesi %>%
+  ggplot(aes(x=Data, y=Incidenti)) +
+  geom_line( color="steelblue") + 
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+  xlab("") +
+  theme_ipsum() +
+  theme(axis.text.x=element_text(angle=60, hjust=1)) +
+  labs(title="Incidenti 2001-2018", subtitle="Valori per mese")
+  
+
+j1_incidenti_mesi %>%
+  ggplot(aes(x=Data, y=Incidenti)) +
+  geom_line( color="steelblue") + 
+  geom_smooth(method = 'loess', formula = y ~ x,color="red", fill="#69b3a2", se=FALSE) +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+  xlab("") +
+  theme_ipsum() +
+  theme(axis.text.x=element_text(angle=60, hjust=1)) +
+  labs(title="Incidenti 2001-2018", subtitle="Valori per mese")
+
+j1_incidenti_anno <-
+  i1_incidenti %>%
+  filter(!grepl('Trimestre', Mese)) %>%
+  select(Anno, Incidenti) %>%
+  group_by(Anno) %>%
+  summarise(Incidenti = sum(Incidenti))
+
+j1_incidenti_anno$Anno <- as.Date(paste(j1_incidenti_anno$Anno,"-01-01",sep="")) #converto in Data
+
+j1_incidenti_anno %>%
+  ggplot( aes(x=Anno, y=Incidenti)) +
+  geom_line( color="red") +
+  geom_point(shape=21, color="red4", fill="red4", size=1) +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.019)), limits = c(0, NA)) +
+  theme_ipsum() +
+  theme(axis.text.x=element_text(angle=60, hjust=1)) +
+  labs(title="Incidenti 2001-2018", subtitle="Valori per anno")
+
+```
+
+```{r}
+j2_incidenti_mesi <-
+  i1_incidenti %>%
+  select(Anno, Mese, Incidenti) %>%
+  filter(!grepl('Trimestre', Mese))
+
+
+j2_incidenti_mesi$Mese <- factor(c("Gennaio","Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"), levels = c("Gennaio","Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre")) #forzo l'ordine dei mesi
+j2_incidenti_mesi
+j2_incidenti_mesi %>%
+  ggplot( aes(x=Mese, y=Incidenti, group=Anno, color=Anno)) +
+  geom_line() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1)), limits = c(0, NA)) +
+  theme(axis.text.x=element_text(angle=60, hjust=1))+
+  labs(title="Incidenti 2001-2018", subtitle="Comparazione per mese")
+
+j3_incidenti_mesi_avg <-
+  j2_incidenti_mesi %>%
+  group_by(Mese) %>%
+  summarise(Incidenti = mean(Incidenti))
+
+j3_incidenti_mesi_avg %>%
+  ggplot( aes(x=Mese, y=Incidenti, group = 1)) +
+  geom_line(color="blue") +
+  geom_point(shape=21, color="blue4", fill="blue4", size=1) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1)), limits = c(0, NA)) +
+  theme(axis.text.x=element_text(angle=60, hjust=1)) +
+  labs(title="Media Incidenti 2001-2018", subtitle="Per mese")
+
+j3_incidenti_2018 <-
+  j2_incidenti_mesi %>%
+  filter(Anno == "2018")
+
+```
+
+```{r}
+j3_incidenti_con_imr <-
+  j3_incidenti_2018 %>%
+  left_join(e1_traffico, by = "Mese")
+
+j3_incidenti_con_imr
+
+j3_incidenti_con_imr$Mese <- factor(c("Gennaio","Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"), levels = c("Gennaio","Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre")) #forzo l'ordine dei mesi
+
+j3_incidenti_con_imr %>%
+  ggplot( aes(x=Mese, y=X.IMR, group = 1)) +
+  geom_line(color="green3") +
+  geom_point(shape=21, color="green4", fill="green4", size=1) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1)), limits = c(0, NA)) +
+  theme(axis.text.x=element_text(angle=60, hjust=1)) +
+  labs(title="Indice di Mobilità Rilevata (IMR) 2018", subtitle="media [veicoli / giorno] per mese")
+
+j3_incidenti_2018 %>%
+  ggplot( aes(x=Mese, y=Incidenti, group = 1)) +
+  geom_line(color="blue1") +
+  geom_point(shape=21, color="blue3", fill="blue3", size=1) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1)), limits = c(0, NA)) +
+  theme(axis.text.x=element_text(angle=60, hjust=1)) +
+  labs(title="Incidenti avvenuti nel 2018", subtitle="Per numero incidenti")
+
+j3_incidenti_con_imr<- j3_incidenti_con_imr %>%
+  mutate(indice = Incidenti / X.IMR)
+
+j3_incidenti_con_imr %>%
+  ggplot( aes(x=Mese, y=indice, group = 1)) +
+  geom_line(color="green") +
+  geom_point(shape=21, color="black", fill="red", size=1) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1)), limits = c(0, NA)) +
+  theme(axis.text.x=element_text(angle=60, hjust=1)) +
+  labs(title="Rapporto Incidenti-IMR 2018", subtitle="Incidenti su IMR")
+```
+
+```{r}
+k1_tipo_veicoli <-
+  i1_inc_tipo_veicoli %>%
+  filter(grepl('Totale', Regione))
+
+k1_tipo_veicoli
+
+k1_tipo_veicoli %>%
+  ggplot( aes(x=Anno)) +
+  geom_line(aes(y = autovettura.pubblica, color="Autov. pubblica")) + 
+  geom_line(aes(y = autov..soccorso.o.polizia, color="Autov. di soccorso o polizia")) +
+  geom_line(aes(y = autobus.o.filobus.servizio.urbano, color="Autobus/Filobus urbano")) +
+  geom_line(aes(y = autobus.servizio.extra.urbano, color="Autobus/Filobus extraurbano")) +
+  geom_line(aes(y = tram, color="Tram")) +
+  geom_line(aes(y = veicoli.speciali, color="Veicoli speciali")) +
+  scale_color_manual(name="Veicoli",values = c("red4", "tan3","blue","cornflowerblue","green4","yellow4")) +
+  scale_x_continuous("Anno", labels = as.character(k1_tipo_veicoli$Anno), breaks = k1_tipo_veicoli$Anno) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title="Incidenti Veicoli Pubblici e speciali 2001-2018", y="Incidenti")
+
+k1_tipo_veicoli %>%
+  ggplot( aes(x=Anno)) +
+  geom_line(aes(y = autocarro,color="Autocarro")) +
+  geom_line(aes(y = autosnodato.autoarticolato, color="Autosnodato/Autoarticolato")) +
+  geom_line(aes(y = autotreno.con.rimorchio, color="Autotreno con rimorchio")) +
+  scale_color_manual(name="Veicoli",values = c("darkorange1", "gold3","khaki3","wheat3")) +
+  scale_x_continuous("Anno", labels = as.character(k1_tipo_veicoli$Anno), breaks = k1_tipo_veicoli$Anno) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title="Incidenti Veicoli Pesanti 2001-2018", y="Incidenti")
+
+
+k1_tipo_veicoli %>%
+  ggplot( aes(x=Anno)) +
+  geom_line(aes(y = ciclomotore, color="Ciclomotore")) +
+  geom_line(aes(y = motociclo.a.solo, color="Motociclo a solo")) +
+  geom_line(aes(y = motociclo.con.passeggero, color="Motociclo con passeggero")) +
+  geom_line(aes(y = motocarro.o.motofurgone, color="Motocarro o motofurgone")) +
+  geom_line(aes(y = quadriciclo.leggero, color="Quadriciclo leggero")) +
+  scale_color_manual(name="Veicoli",values = c("magenta3", "green3","purple3","plum3","skyblue3","cyan3")) +
+  scale_x_continuous("Anno", labels = as.character(k1_tipo_veicoli$Anno), breaks = k1_tipo_veicoli$Anno) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title="Incidenti Motocicli 2001-2018", y="Incidenti")
+
+k1_tipo_veicoli %>%
+  ggplot( aes(x=Anno)) +
+  geom_line(aes(y = trattore.stradale.o.motrice, color="Trattore stradale o motrice")) +
+  geom_line(aes(y = trattore.agricolo, color="Trattore agricolo")) +
+  geom_line(aes(y = velocipede, color="Velocipede")) +
+  geom_line(aes(y = veicolo.trazione.animale.o.braccia, color="Veicolo trazione animale o braccia")) +
+  geom_line(aes(y = altri.veicoli, color="Altri Veicoli")) +
+  geom_line(aes(y = veicolo.ignoto.datosi.alla.fuga, color="Veicolo ignoto datosi alla fuga")) +
+  geom_line(aes(y = autov..priv..con.rimorchio, color="Autov. privata con rimorchio")) +
+  scale_color_manual(name="Veicoli",values = c("grey50","magenta3", "springgreen4","darkseagreen4","black","slateblue3","blue")) +
+  scale_x_continuous("Anno", labels = as.character(k1_tipo_veicoli$Anno), breaks = k1_tipo_veicoli$Anno) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title="Incidenti Altri Veicoli 2001-2018", y="Incidenti")
+
+k1_tipo_veicoli %>%
+  ggplot( aes(x=Anno)) +
+  geom_line(aes(y = autovettura.privata, color="Autovettura privata")) + 
+  geom_line(aes(y = totale.veicoli.coinvolti, color="Totale veicoli coinvolti")) + 
+  scale_color_manual(name="Veicoli",values = c("red", "black")) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.015)), limits = c(0, NA), labels=comma) +
+  scale_x_continuous("Anno", labels = as.character(k1_tipo_veicoli$Anno), breaks = k1_tipo_veicoli$Anno) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title="Incidenti Autovetture private e Totale Veicoli coinvolti 2001-2018", y="Incidenti")
+
+
+```
+
+```{r}
+
+k2_tipo_veicoli <-
+  k1_tipo_veicoli %>%
+  gather(Tipo.veicolo,
+         Incidenti,autovettura.privata, autov..priv..con.rimorchio, autovettura.pubblica, autov..soccorso.o.polizia,
+         autobus.o.filobus.servizio.urbano, autobus.servizio.extra.urbano, tram, autocarro, autotreno.con.rimorchio,
+         autosnodato.autoarticolato, veicoli.speciali, trattore.stradale.o.motrice, trattore.agricolo,
+         velocipede, ciclomotore, motociclo.a.solo, motociclo.con.passeggero, motocarro.o.motofurgone,
+         veicolo.trazione.animale.o.braccia, veicolo.ignoto.datosi.alla.fuga, quadriciclo.leggero,
+         altri.veicoli, totale.veicoli.coinvolti, totale.incidenti, na.rm = FALSE, convert = FALSE)
+
+
+k2_tipo_veicoli_2018 <-
+  k2_tipo_veicoli %>%
+  select(Anno, Tipo.veicolo, Incidenti) %>%
+  filter(Anno=="2018")
+
+k2_tipo_veicoli_2018 <- k2_tipo_veicoli_2018[-c(23, 24), ]
+
+treemap(k2_tipo_veicoli_2018,
+        
+        index="Tipo.veicolo",
+        vSize="Incidenti",
+        type="index",
+        
+        title="Veicoli coinvolti in incidenti 2018",
+        palette="Dark2",
+        
+        border.col=c("black"),             
+        border.lwds=1,                         
+        
+        fontsize.labels=0.9,
+        fontcolor.labels="white",
+        fontface.labels=1,            
+        bg.labels=c("transparent"),              
+        align.labels=c("left", "top"),                                  
+        overlap.labels=0.5,
+        inflate.labels=T
+)
+
+k2_categoria_veicoli_2018 <-
+  i1_inc_tipo_veicoli %>%
+  filter(grepl('Totale', Regione)) %>%
+  filter(Anno=="2018") %>%
+  mutate(Motocicli=sum(ciclomotore, motociclo.a.solo,motociclo.con.passeggero, motocarro.o.motofurgone,
+                       quadriciclo.leggero)) %>%
+  mutate(Autovetture.private=sum(autovettura.privata, autov..priv..con.rimorchio)) %>%
+  mutate(Altri.veicoli=sum(trattore.stradale.o.motrice, trattore.agricolo, velocipede, veicolo.trazione.animale.o.braccia,
+                           altri.veicoli, veicolo.ignoto.datosi.alla.fuga, autov..priv..con.rimorchio))%>%
+  mutate(Veicoli.pesanti=sum(autocarro,autosnodato.autoarticolato,autotreno.con.rimorchio))%>%
+  mutate(Veicoli.pubblici=sum(autovettura.pubblica, autov..soccorso.o.polizia, autobus.o.filobus.servizio.urbano,
+                              autobus.servizio.extra.urbano, tram, veicoli.speciali))%>%
+  select(Regione, Anno, Autovetture.private, Motocicli, Veicoli.pesanti, Veicoli.pubblici, veicoli.speciali, Altri.veicoli)
+
+k2_categoria_veicoli_2018 <-
+  k2_categoria_veicoli_2018 %>%
+  gather(Categoria.veicolo, Incidenti,
+         Autovetture.private, Motocicli, Veicoli.pesanti, Veicoli.pubblici, Altri.veicoli,
+         na.rm = FALSE, convert = FALSE)
+
+treemap(k2_categoria_veicoli_2018,
+        
+        index="Categoria.veicolo",
+        vSize="Incidenti",
+        type="index",
+        
+        title="Veicoli coinvolti in incidenti per categoria 2018",
+        palette="Dark2",
+        
+        border.col=c("black"),             
+        border.lwds=1,                         
+        
+        fontsize.labels=0.9,
+        fontcolor.labels="white",
+        fontface.labels=1,            
+        bg.labels=c("transparent"),              
+        align.labels=c("left", "top"),                                  
+        overlap.labels=0.5,
+        inflate.labels=T
+)
+
+```
+
+```{r}
+k3_tipo_veicoli_2018_regione <-
+  i1_inc_tipo_veicoli %>%
+  filter(!grepl('Totale', Regione)) %>%
+  filter(!grepl('Italia', Regione)) %>%
+  filter(Anno=="2018") %>%
+  group_by(Regione) %>%
+  summarise(Motocicli=sum(ciclomotore, motociclo.a.solo,motociclo.con.passeggero, motocarro.o.motofurgone,
+                       quadriciclo.leggero),
+Autovetture.private=sum(autovettura.privata, autov..priv..con.rimorchio),
+Altri.veicoli=sum(trattore.stradale.o.motrice, trattore.agricolo, velocipede, veicolo.trazione.animale.o.braccia,
+                           altri.veicoli, veicolo.ignoto.datosi.alla.fuga, autov..priv..con.rimorchio),
+Veicoli.pesanti=sum(autocarro,autosnodato.autoarticolato,autotreno.con.rimorchio),
+Veicoli.pubblici=sum(autovettura.pubblica, autov..soccorso.o.polizia, autobus.o.filobus.servizio.urbano,
+                              autobus.servizio.extra.urbano, tram, veicoli.speciali))
+
+
+k3_tipo_veicoli_2018_regione <-
+  k3_tipo_veicoli_2018_regione %>%
+  gather(Categoria.veicolo, Incidenti,
+         Autovetture.private, Motocicli, Veicoli.pesanti, Veicoli.pubblici, Altri.veicoli,
+         na.rm = FALSE, convert = FALSE) %>%
+  arrange(Incidenti)
+
+k3_tipo_veicoli_2018_regione %>%
+  ggplot(aes(fill=Categoria.veicolo, y=sort(Incidenti), x=Regione)) + 
+  geom_bar(position="stack", stat="identity") +
+  ggtitle("Veicoli coinvolti in incidenti per Regione 2018") +
+  theme_ipsum() +
+  theme(axis.text.x=element_text(angle=90, hjust=1, size=10)) +
+  labs(y = "Veicoli")
+  xlab("")
+
+
+```
+```{r}
+e2_popolazione_2018 <-
+  e1_popolazione_2018 %>%
+  select(Regione, Popolazione.al.31.dicembre...Totale)
+
+names(e2_popolazione_2018)[names(e2_popolazione_2018) == "Popolazione.al.31.dicembre...Totale"] <- "Popolazione.totale" #cambio nome variabile
+
+e2_popolazione_2018
+
+k4_incidenti_2018_regione <-
+  i1_inc_tipo_veicoli %>%
+  filter(Anno=="2018") %>%
+  filter(!grepl('Totale', Regione)) %>%
+  filter(!grepl('Italia', Regione)) %>%
+  select(Regione, totale.incidenti)
+
+#gp <- list(low="white", high="gray20", theme=theme_bw())
+#mapIT(Popolazione.totale, Regione, data=e2_popolazione_2018, graphPar = list(guide.label="Popolazione per regione 2018"))
+gp <- list(low="white", high="gray20", theme=theme_bw())
+mapIT(totale.incidenti, Regione, data=k4_incidenti_2018_regione, graphPar = list(guide.label="Incidenti per regione\n2018"))
+
+k4_incidenti_2018_regione_abitanti <-
+  e2_popolazione_2018 %>%
+  left_join(k4_incidenti_2018_regione, by="Regione") %>%
+  mutate(Incidenti.per.centomila = totale.incidenti / Popolazione.totale *100000) %>%
+  select(Regione, Incidenti.per.centomila)
+
+k4_incidenti_2018_regione_abitanti
+  
+
+gp <- list(low="white", high="gray20", theme=theme_bw())
+mapIT(Incidenti.per.centomila, Regione, data=k4_incidenti_2018_regione_abitanti, graphPar = list(guide.label="Incidenti per regione \n(ogni 100.000 abitanti) \n2018"))
+
+```
+
+```{r}
+
+p1_lesioni_2018 %>%
+  ggplot( aes(x=Anno)) +
+  geom_line(aes(y = Vittime, color="Vittime")) +
+  geom_line(aes(y = Feriti, color="Feriti")) +
+  geom_line(aes(y = Incidenti, color="Incidenti")) +
+  scale_color_manual(name="Legenda",values = c("grey50","magenta3", "blue")) +
+  scale_x_continuous("Anno", labels = as.character(p1_lesioni_2018$Anno), breaks = p1_lesioni_2018$Anno) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title="Comparazione Incidenti,Vittime e Feriti 2001-2018", y="Valori")
+
+
+p1_lesioni_2018 %>%
+  ggplot( aes(x=Anno, y=Vittime)) +
+  geom_bar(stat="identity", fill="lightblue") +
+  geom_smooth(method = 'loess', se = FALSE, formula='y ~ x') +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.019)), limits = c(0, NA)) +
+  scale_x_continuous("Anno", labels = as.character(p1_lesioni_2018$Anno), breaks = p1_lesioni_2018$Anno) +
+  labs(title="Vittime dovute a Incidenti 2001-2018", y="Persone") +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
